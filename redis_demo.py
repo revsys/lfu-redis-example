@@ -55,22 +55,21 @@ def get_redis_info(redis_client):
 
 
 def create_info_table(title, info, status_msg=""):
-    """Create a rich table showing Redis instance information."""
+    """Create a compact rich table showing Redis instance information."""
     table = Table(
-        title=f"🔴 {title}",
+        title=f"🔴 {title}" if "LRU" in title else f"🔵 {title}",
         show_header=False,
         border_style="red" if "LRU" in title else "blue",
+        padding=(0, 1),  # Reduce padding
     )
 
     if "error" in info:
         table.add_row("Status", f"[red]Error: {info['error']}[/red]")
         return table
 
-    table.add_row("Memory Used", f"{info['used_memory'] / (1024 * 1024):.2f} MB")
-    table.add_row("Max Memory", f"{info['max_memory'] / (1024 * 1024):.2f} MB")
-    table.add_row("Memory Usage", f"{info['memory_percent']:.1f}%")
-    table.add_row("Key Count", str(info["key_count"]))
-
+    table.add_row("Memory", f"{info['used_memory'] / (1024 * 1024):.1f}/{info['max_memory'] / (1024 * 1024):.1f}MB ({info['memory_percent']:.0f}%)")
+    table.add_row("Keys", f"{info['key_count']} keys")
+    
     if status_msg:
         table.add_row("Status", status_msg)
 
@@ -127,11 +126,12 @@ def main():
     lfu_redis.flushdb()
 
     # Show header
-    console.print(Panel(
-        "[bold blue]Redis LRU vs LFU Eviction Demo[/bold blue]",
-        subtitle="Demonstrating memory-constrained behavior",
-    ))
-    
+    console.print(
+        Panel(
+            "[bold blue]Redis LRU vs LFU Eviction Demo[/bold blue]",
+        )
+    )
+
     # Phase 1: Fill LRU Redis
     console.print(
         "\n[yellow]Phase 1: Filling LRU Redis (port 6000) until memory limit...[/yellow]"
@@ -156,16 +156,12 @@ def main():
                 value = json.dumps(
                     {
                         "session_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=5000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=5000)
                         ),
                         "user_id": random.randint(1000, 9999),
                         "timestamp": time.time(),
                         "extra_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=3000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=3000)
                         ),
                     }
                 )
@@ -218,16 +214,12 @@ def main():
                 value = json.dumps(
                     {
                         "session_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=5000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=5000)
                         ),
                         "user_id": random.randint(1000, 9999),
                         "timestamp": time.time(),
                         "extra_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=3000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=3000)
                         ),
                     }
                 )
@@ -311,16 +303,12 @@ def main():
                 value = json.dumps(
                     {
                         "session_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=5000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=5000)
                         ),
                         "user_id": random.randint(1000, 9999),
                         "timestamp": time.time(),
                         "extra_data": "".join(
-                            random.choices(
-                                string.ascii_letters + string.digits, k=3000
-                            )
+                            random.choices(string.ascii_letters + string.digits, k=3000)
                         ),
                     }
                 )
@@ -344,109 +332,48 @@ def main():
 
     # Check which keys survived the eviction process
     console.print("\n[cyan]Analyzing key survival patterns...[/cyan]")
-    
+
     survived_high = [key for key in high_access_keys if lfu_redis.exists(key)]
     survived_medium = [key for key in medium_access_keys if lfu_redis.exists(key)]
     survived_low = [key for key in low_access_keys if lfu_redis.exists(key)]
-    
+
     evicted_high = [key for key in high_access_keys if not lfu_redis.exists(key)]
     evicted_medium = [key for key in medium_access_keys if not lfu_redis.exists(key)]
     evicted_low = [key for key in low_access_keys if not lfu_redis.exists(key)]
 
     # Final summary and display
     console.print("\n[bold green]Demo Complete![/bold green]\n")
-    
+
     final_lru_info = get_redis_info(lru_redis)
     final_lfu_info = get_redis_info(lfu_redis)
+
+    # Print Redis stats
+    console.print(create_info_table(
+        "LRU Redis (Port 6000)",
+        final_lru_info,
+        lru_error_msg if lru_error_occurred else f"Final: {len(lru_keys)} keys",
+    ))
     
-    # Create final layout without progress bars
-    layout = Layout()
-    layout.split_column(
-        Layout(name="tables", size=15),
-        Layout(name="analysis", size=12),
-        Layout(name="summary", ratio=1),
-    )
-    
-    # Show final Redis stats
-    tables_layout = Layout()
-    tables_layout.split_row(
-        Layout(create_info_table("LRU Redis (Port 6000)", final_lru_info, 
-                                lru_error_msg if lru_error_occurred else f"Final: {len(lru_keys)} keys")),
-        Layout(create_info_table("LFU Redis (Port 6001)", final_lfu_info, 
-                                f"Final: {final_lfu_info['key_count']} keys"))
-    )
-    layout["tables"].update(tables_layout)
-    
-    # Create key survival analysis
-    analysis_layout = Layout()
-    analysis_layout.split_row(
-        Layout(name="survived", ratio=1),
-        Layout(name="evicted", ratio=1),
-    )
-    
-    # Survived keys table
-    survived_table = Table(title="🟢 Survived Keys (High Frequency)", border_style="green")
-    survived_table.add_column("Access Pattern", style="cyan")
-    survived_table.add_column("Count", style="green")
-    survived_table.add_column("Example Keys", style="dim")
-    
-    survived_table.add_row("High (10x access)", f"{len(survived_high)}/12", 
-                          f"{survived_high[0][-8:]}..." if survived_high else "None")
-    survived_table.add_row("Medium (5x access)", f"{len(survived_medium)}/12", 
-                          f"{survived_medium[0][-8:]}..." if survived_medium else "None")
-    survived_table.add_row("Low (2x access)", f"{len(survived_low)}/24", 
-                          f"{survived_low[0][-8:]}..." if survived_low else "None")
-    
-    analysis_layout["survived"].update(survived_table)
-    
-    # Evicted keys table
-    evicted_table = Table(title="🔴 Evicted Keys (Low Frequency)", border_style="red")
-    evicted_table.add_column("Access Pattern", style="cyan")
-    evicted_table.add_column("Count", style="red")
-    evicted_table.add_column("Example Keys", style="dim")
-    
-    evicted_table.add_row("High (10x access)", f"{len(evicted_high)}/12", 
-                         f"{evicted_high[0][-8:]}..." if evicted_high else "None")
-    evicted_table.add_row("Medium (5x access)", f"{len(evicted_medium)}/12", 
-                         f"{evicted_medium[0][-8:]}..." if evicted_medium else "None")
-    evicted_table.add_row("Low (2x access)", f"{len(evicted_low)}/24", 
-                         f"{evicted_low[0][-8:]}..." if evicted_low else "None")
-    
-    analysis_layout["evicted"].update(evicted_table)
-    layout["analysis"].update(analysis_layout)
-    
-    # Create enhanced summary
-    summary_text = Text()
+    console.print(create_info_table(
+        "LFU Redis (Port 6001)",
+        final_lfu_info,
+        f"Final: {final_lfu_info['key_count']} keys",
+    ))
+
+    # Print survival analysis
+    console.print(f"\n[bold green]Key Survival Analysis:[/bold green]")
+    console.print(f"High freq (10x access): [green]{len(survived_high)}/12 survived[/green], [red]{len(evicted_high)}/12 evicted[/red]")
+    console.print(f"Med freq (5x access):   [green]{len(survived_medium)}/12 survived[/green], [red]{len(evicted_medium)}/12 evicted[/red]")
+    console.print(f"Low freq (2x access):   [green]{len(survived_low)}/24 survived[/green], [red]{len(evicted_low)}/24 evicted[/red]")
+
+    # Print summary
     if lru_error_occurred:
-        summary_text.append("LRU Behavior: ", style="bold red")
-        summary_text.append("Redis rejected new keys due to TTL constraints when memory limit reached.\n", style="red")
-        summary_text.append("This demonstrates LRU's inability to evict keys with TTL in a memory-constrained environment.\n\n")
-
-    summary_text.append("LFU Behavior: ", style="bold blue")
-    summary_text.append("Redis intelligently evicted keys based on access frequency!\n", style="blue")
+        console.print(f"\n[bold red]LRU Result:[/bold red] [red]Stopped accepting keys at memory limit[/red]")
     
-    # Add specific statistics
-    total_retained = len(survived_high) + len(survived_medium) + len(survived_low)
-    total_evicted = len(evicted_high) + len(evicted_medium) + len(evicted_low)
-    
-    summary_text.append(f"• {len(survived_high)}/12 high-frequency keys retained\n", style="green")
-    summary_text.append(f"• {len(survived_medium)}/12 medium-frequency keys retained\n", style="yellow")
-    summary_text.append(f"• {len(survived_low)}/24 low-frequency keys retained\n", style="cyan")
-    summary_text.append(f"• Most single-access keys were evicted to make room\n", style="red")
-    summary_text.append("This demonstrates LFU's intelligent frequency-based eviction!")
-
-    layout["summary"].update(Panel(summary_text, title="Key Survival Analysis", border_style="green"))
-    
-    # Display final result
-    console.print(layout)
-    console.print("\n[dim]Press Ctrl+C to exit[/dim]")
-    
-    try:
-        time.sleep(10)  # Show final state for 10 seconds
-    except KeyboardInterrupt:
-        pass
+    console.print(f"[bold blue]LFU Result:[/bold blue] [blue]Smart frequency-based eviction![/blue]")
+    console.print(f"[green]✓ Most frequently accessed keys were retained[/green]")
+    console.print(f"[red]✓ Least frequently accessed keys were evicted[/red]")
 
 
 if __name__ == "__main__":
     main()
-
