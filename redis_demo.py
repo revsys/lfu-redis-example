@@ -12,11 +12,7 @@ import json
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.layout import Layout
-from rich.live import Live
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.columns import Columns
-from rich.text import Text
 
 console = Console()
 
@@ -67,9 +63,12 @@ def create_info_table(title, info, status_msg=""):
         table.add_row("Status", f"[red]Error: {info['error']}[/red]")
         return table
 
-    table.add_row("Memory", f"{info['used_memory'] / (1024 * 1024):.1f}/{info['max_memory'] / (1024 * 1024):.1f}MB ({info['memory_percent']:.0f}%)")
+    table.add_row(
+        "Memory",
+        f"{info['used_memory'] / (1024 * 1024):.1f}/{info['max_memory'] / (1024 * 1024):.1f}MB ({info['memory_percent']:.0f}%)",
+    )
     table.add_row("Keys", f"{info['key_count']} keys")
-    
+
     if status_msg:
         table.add_row("Status", status_msg)
 
@@ -191,7 +190,7 @@ def main():
 
     # Phase 2: Fill LFU Redis and demonstrate access patterns
     console.print(
-        f"\n[yellow]Phase 2: Filling LFU Redis (port 6001) and creating access patterns...[/yellow]"
+        "\n[yellow]Phase 2: Filling LFU Redis (port 6001) and creating access patterns...[/yellow]"
     )
 
     lfu_keys = []
@@ -258,7 +257,7 @@ def main():
             for _ in range(10):
                 try:
                     lfu_redis.get(key)
-                except:
+                except Exception:
                     pass
             progress.update(access_task, completed=i * 2)
 
@@ -267,7 +266,7 @@ def main():
             for _ in range(5):
                 try:
                     lfu_redis.get(key)
-                except:
+                except Exception:
                     pass
             progress.update(access_task, completed=30 + i * 2)
 
@@ -276,7 +275,7 @@ def main():
             for _ in range(2):
                 try:
                     lfu_redis.get(key)
-                except:
+                except Exception:
                     pass
             progress.update(access_task, completed=60 + i)
 
@@ -297,7 +296,7 @@ def main():
     ) as progress:
         eviction_task = progress.add_task("Triggering evictions...", total=50)
 
-        for i in range(50):
+        for i in range(300):
             try:
                 key = generate_session_key()
                 value = json.dumps(
@@ -348,31 +347,45 @@ def main():
     final_lfu_info = get_redis_info(lfu_redis)
 
     # Print Redis stats
-    console.print(create_info_table(
-        "LRU Redis (Port 6000)",
-        final_lru_info,
-        lru_error_msg if lru_error_occurred else f"Final: {len(lru_keys)} keys",
-    ))
-    
-    console.print(create_info_table(
-        "LFU Redis (Port 6001)",
-        final_lfu_info,
-        f"Final: {final_lfu_info['key_count']} keys",
-    ))
+    console.print(
+        create_info_table(
+            "LRU Redis (Port 6000)",
+            final_lru_info,
+            lru_error_msg if lru_error_occurred else f"Final: {len(lru_keys)} keys",
+        )
+    )
+
+    console.print(
+        create_info_table(
+            "LFU Redis (Port 6001)",
+            final_lfu_info,
+            f"Final: {final_lfu_info['key_count']} keys",
+        )
+    )
 
     # Print survival analysis
-    console.print(f"\n[bold green]Key Survival Analysis:[/bold green]")
-    console.print(f"High freq (10x access): [green]{len(survived_high)}/12 survived[/green], [red]{len(evicted_high)}/12 evicted[/red]")
-    console.print(f"Med freq (5x access):   [green]{len(survived_medium)}/12 survived[/green], [red]{len(evicted_medium)}/12 evicted[/red]")
-    console.print(f"Low freq (2x access):   [green]{len(survived_low)}/24 survived[/green], [red]{len(evicted_low)}/24 evicted[/red]")
+    console.print("\n[bold green]Key Survival Analysis:[/bold green]")
+    console.print(
+        f"High freq (10x access): [green]{len(survived_high)}/12 survived[/green], [red]{len(evicted_high)}/12 evicted[/red]"
+    )
+    console.print(
+        f"Med freq (5x access):   [green]{len(survived_medium)}/12 survived[/green], [red]{len(evicted_medium)}/12 evicted[/red]"
+    )
+    console.print(
+        f"Low freq (2x access):   [green]{len(survived_low)}/24 survived[/green], [red]{len(evicted_low)}/24 evicted[/red]"
+    )
 
     # Print summary
     if lru_error_occurred:
-        console.print(f"\n[bold red]LRU Result:[/bold red] [red]Stopped accepting keys at memory limit[/red]")
-    
-    console.print(f"[bold blue]LFU Result:[/bold blue] [blue]Smart frequency-based eviction![/blue]")
-    console.print(f"[green]✓ Most frequently accessed keys were retained[/green]")
-    console.print(f"[red]✓ Least frequently accessed keys were evicted[/red]")
+        console.print(
+            "\n[bold red]LRU Result:[/bold red] [red]Stopped accepting keys at memory limit[/red]"
+        )
+
+    console.print(
+        "[bold blue]LFU Result:[/bold blue] [blue]Smart frequency-based eviction![/blue]"
+    )
+    console.print("[green]✓ Most frequently accessed keys were retained[/green]")
+    console.print("[red]✓ Least frequently accessed keys were evicted[/red]")
 
 
 if __name__ == "__main__":
