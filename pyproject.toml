@@ -1,0 +1,10 @@
+[project]
+name = "lfu-redis-example"
+version = "0.1.0"
+description = "Example Redis with LFU Keys"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "redis>=6.4.0",
+    "rich>=14.1.0",
+]

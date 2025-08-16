@@ -1,0 +1,21 @@
+services:
+  
+  redis:
+    image: "redis:8.2-alpine"
+    command: redis-server /usr/local/redis/redis.conf
+    ports:
+      - "6000:6379"
+    init: true
+    stop_signal: SIGKILL
+    volumes:
+      - ./docker/redis.conf:/usr/local/redis/redis.conf:ro
+
+  redis-lfu:
+    image: "redis:8.2-alpine"
+    command: redis-server /usr/local/redis/redis.conf
+    ports:
+      - "6001:6379"
+    init: true
+    stop_signal: SIGKILL
+    volumes:
+      - ./docker/redis-lfu.conf:/usr/local/redis/redis.conf:ro
